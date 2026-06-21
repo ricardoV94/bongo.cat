@@ -313,6 +313,9 @@ var i18n_map = {
   "Marimba": {
     "en": "Marimba",
     "ca": "Marimba"},
+  "Song": {
+    "en": "Song",
+    "ca": "Cançó"},
   "Keyboard": {
     "en": "Keyboard",
     "ca": "Teclat"},
@@ -504,4 +507,59 @@ $(document).ready(function() {
   // Staged surprise: orange kitten after one minute, blue one after three.
   $.wait(function() { orange.activate(); }, 60000);
   $.wait(function() { blue.activate(); }, 180000);
+});
+
+/* ----- Auto-play songs from the README (press M) -----
+ * Each press plays the next song by scheduling the same key presses the
+ * keyboard uses, so the cat plays the right instruments and the kittens
+ * echo along. Press M again to stop.
+ */
+// "|" marks a phrase break (the line breaks in the README) for a short pause.
+var SONGS = [
+  { name: "Happy Birthday", notes: "1 1 3 1 6 5 | 1 1 3 1 8 6" },
+  { name: "Ode to Joy", notes: "5 5 6 8 8 6 5 3 1 1 3 5 5 3 3 | 5 5 6 8 8 6 5 3 1 1 3 5 3 1 1 | 3 3 5 1 3 5 6 5 1 3 5 6 5 3 1 3 1" },
+  { name: "In the End", notes: "3 0 0 6 5 5 5 5 6 3 | 0 0 6 5 5 5 5 6 3 | C | Space | 0 0 6 5 5 5 5 6 3 | 0 0 6 5 5 5 5 6 3 | C" },
+  { name: "Come as You Are", notes: "1 1 2 3 | 6 3 6 3 3 2 1 8 1 1 8 1 2 3" }
+];
+var SONG_NOTE_MS = 400;   // time between note onsets
+var SONG_PRESS_MS = 170;  // how long each note is held
+var SONG_BREAK_MS = 320;  // extra pause at a phrase break
+var songIndex = 0;
+var songTimers = [];
+
+function songPlaying() { return songTimers.length > 0; }
+function stopSong() {
+  for (var i = 0; i < songTimers.length; i++) { window.clearTimeout(songTimers[i]); }
+  songTimers = [];
+  // release anything left mid-press so no paw/mouth gets stuck down
+  $("#mouth, #paw-left, #paw-right").css("background-position-x", "0");
+  pressed.length = 0;
+}
+function scheduleNote(instrument, key, t) {
+  songTimers.push($.wait(function() { $.play(instrument, key, true); }, t));
+  songTimers.push($.wait(function() { $.play(instrument, key, false); }, t + SONG_PRESS_MS));
+}
+function playSong(notes) {
+  stopSong();
+  var t = 0;
+  notes.split(/\s+/).forEach(function(tok) {
+    if (tok === "|") { t += SONG_BREAK_MS; return; }   // phrase break
+    var key = tok === "Space" ? " " : tok.toUpperCase();
+    var instrument = InstrumentPerKeyEnum[key];
+    if (instrument === undefined) { return; }
+    scheduleNote(instrument, key, t);
+    t += SONG_NOTE_MS;
+  });
+  // finish with a meow
+  t += SONG_BREAK_MS;
+  scheduleNote(InstrumentEnum.MEOW, " ", t);
+  songTimers.push($.wait(stopSong, t + SONG_NOTE_MS));
+}
+
+$(document).on("keydown", function(e) {
+  if (e.key.toUpperCase() !== "M" || e.repeat) { return; }
+  e.preventDefault();
+  if (songPlaying()) { stopSong(); return; }   // press M again to stop
+  playSong(SONGS[songIndex].notes);
+  songIndex = (songIndex + 1) % SONGS.length;
 });
