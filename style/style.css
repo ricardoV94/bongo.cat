@@ -232,6 +232,14 @@ select#select-instrument option {
   background-position-x: 0
 }
 
+/* Slide the main cat up-and-left along the table line so the three cats are
+   evenly spaced. Uses top/left (not transform) to avoid creating a stacking
+   context, which would drop the pressed paws behind the bongos. */
+#container .cat, #container .instruments {
+  top: -25px;
+  left: -106px
+}
+
 .cat>#head {
   background-image: url(../images/cat.png);
   z-index: 10
@@ -255,6 +263,49 @@ select#select-instrument option {
 .instruments {
   z-index: 20
 }
+
+/* ----- Companion cats ----- */
+/* Smaller copies that sit along the same diagonal "table" line as the main cat,
+   same orientation (no mirror). Only the body is tinted; bongos stay black.
+   Tweak each `transform` to reposition; `scale` controls size. */
+#container #cat2,
+#container #cat3 {
+  z-index: 40;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  transform-origin: top left;
+  pointer-events: none
+}
+
+/* Orange kitten, lower-right */
+#container #cat2 {
+  transform: translate(590px, 166px) scale(0.45, 0.45)
+}
+
+/* Blue kitten, upper-left (line is higher there) */
+#container #cat3 {
+  transform: translate(-270px, -37px) scale(0.42, 0.42)
+}
+
+#container #cat2.active,
+#container #cat3.active {
+  opacity: 1
+}
+
+/* Companions use pre-tinted outline sprites (colored linework, empty fill,
+   pink beans kept) as normal background-images, so the press animation and
+   layering behave exactly like the main cat. */
+#cat2-bongo, #cat3-bongo { z-index: 25; background-image: url(../images/bongo.png) }
+
+#cat2-head { z-index: 10; background-image: url(../images/cat-orange.png) }
+#cat2-mouth { z-index: 20; background-image: url(../images/mouth-orange.png) }
+#cat2-paw-left { z-index: 30; background-image: url(../images/paw-left-orange.png) }
+#cat2-paw-right { z-index: 30; background-image: url(../images/paw-right-orange.png) }
+
+#cat3-head { z-index: 10; background-image: url(../images/cat-blue.png) }
+#cat3-mouth { z-index: 20; background-image: url(../images/mouth-blue.png) }
+#cat3-paw-left { z-index: 30; background-image: url(../images/paw-left-blue.png) }
+#cat3-paw-right { z-index: 30; background-image: url(../images/paw-right-blue.png) }
 
 .instruments>#bongo, #layer-bongo {
   background-image: url(../images/bongo.png)

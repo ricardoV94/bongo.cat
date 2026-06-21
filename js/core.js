@@ -203,6 +203,9 @@ $.play = function(instrument, key, state) {
       pressed.remove(commonKey);
     }
     $(id).css("background-position-x", (state ? "-800px" : "0"));
+    if (typeof echoCompanions === "function") {
+      echoCompanions(instrument, commonKey, state);
+    }
   }
 }
 $.layers = function(selectedLayer) {
@@ -372,3 +375,133 @@ function internationalize() {
 }
 window.addEventListener("languagechange", internationalize);
 document.addEventListener("DOMContentLoaded", internationalize)
+
+/* ----- Second cat (ginger kitten) -----
+ * A decorative companion that fades in, echoes the player's hits a beat
+ * later, and noodles on its own. It only knows bongos + meowing, voiced
+ * higher (a kitten) via a small Web Audio pitch-shift over the existing
+ * sounds. Plays no part in the instrument-switching logic of the main cat.
+ */
+var KittenAudio = (function() {
+  var ctx = null, buffers = {};
+  function context() {
+    if (!ctx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) { ctx = new AC(); }
+    }
+    return ctx;
+  }
+  function resume() {
+    var c = context();
+    if (c && c.state === "suspended") { c.resume(); }
+  }
+  function load(name, url) {
+    var c = context();
+    if (!c) { return; }
+    fetch(url).then(function(r) { return r.arrayBuffer(); })
+      .then(function(data) { return c.decodeAudioData(data); })
+      .then(function(decoded) { buffers[name] = decoded; })
+      .catch(function() {});
+  }
+  function play(name, rate) {
+    var c = context();
+    if (!c) { return; }
+    resume();
+    var b = buffers[name];
+    if (!b) { return; }
+    var src = c.createBufferSource();
+    src.buffer = b;
+    src.playbackRate.value = rate || 1;
+    src.connect(c.destination);
+    src.start(0);
+  }
+  return { load: load, play: play, resume: resume };
+})();
+
+var ECHO_MS = 320;  // how long after the player a companion answers
+
+// Build a companion bound to an element id prefix (e.g. "cat2"). Each one
+// echoes the player's hits a beat later and noodles on its own bongos.
+function makeCompanion(prefix, opts) {
+  opts = opts || {};
+  var meowRate = opts.meowRate || 1.5;
+  var bongoRate = opts.bongoRate || 1.25;
+  var active = false;
+
+  function setPress(part, pressed) {
+    $("#" + prefix + "-" + part).css("background-position-x", pressed ? "-800px" : "0");
+  }
+  function targetPart(instrument, commonKey) {
+    if (instrument === InstrumentEnum.MEOW) { return "mouth"; }
+    var left = (instrument === InstrumentEnum.BONGO ? commonKey
+      : (commonKey <= 5 && commonKey != 0 ? 0 : 1)) == 0;
+    return "paw-" + (left ? "left" : "right");
+  }
+  function echo(instrument, commonKey, state) {
+    if (!active) { return; }
+    var isMeow = instrument === InstrumentEnum.MEOW;
+    var part = targetPart(instrument, commonKey);
+    $.wait(function() {
+      setPress(part, state);
+      if (state) {
+        if (isMeow) { KittenAudio.play("meow", meowRate); }
+        else { KittenAudio.play(part.indexOf("left") >= 0 ? "bongo1" : "bongo0", bongoRate); }
+      }
+    }, ECHO_MS);
+  }
+  function tap(part, sound, rate) {
+    setPress(part, true);
+    KittenAudio.play(sound, rate);
+    $.wait(function() { setPress(part, false); }, 130);
+  }
+  function noodle() {
+    if (!active) { return; }
+    if (Math.random() < 0.25) {
+      tap("mouth", "meow", meowRate);
+    } else {
+      var left = Math.random() < 0.5;
+      tap(left ? "paw-left" : "paw-right", left ? "bongo1" : "bongo0", bongoRate);
+    }
+    schedule();
+  }
+  function schedule() {
+    $.wait(noodle, 2500 + Math.random() * 4000);
+  }
+  function activate() {
+    if (active) { return; }
+    active = true;
+    $("#" + prefix).addClass("active");
+    schedule();
+  }
+  return { echo: echo, activate: activate };
+}
+
+var companions = [];
+function echoCompanions(instrument, commonKey, state) {
+  for (var i = 0; i < companions.length; i++) {
+    companions[i].echo(instrument, commonKey, state);
+  }
+}
+
+$(document).ready(function() {
+  KittenAudio.load("meow", "sounds/meow.mp3");
+  KittenAudio.load("bongo0", "sounds/bongo0.mp3");
+  KittenAudio.load("bongo1", "sounds/bongo1.mp3");
+  var resumeOnce = function() {
+    KittenAudio.resume();
+    document.removeEventListener("keydown", resumeOnce);
+    document.removeEventListener("mousedown", resumeOnce);
+    document.removeEventListener("touchstart", resumeOnce);
+  };
+  document.addEventListener("keydown", resumeOnce);
+  document.addEventListener("mousedown", resumeOnce);
+  document.addEventListener("touchstart", resumeOnce);
+
+  var orange = makeCompanion("cat2", { meowRate: 1.5, bongoRate: 1.25 });
+  var blue = makeCompanion("cat3", { meowRate: 1.7, bongoRate: 1.4 });
+  companions.push(orange, blue);
+
+  // Staged surprise: orange kitten after one minute, blue one after three.
+  $.wait(function() { orange.activate(); }, 60000);
+  $.wait(function() { blue.activate(); }, 180000);
+});
